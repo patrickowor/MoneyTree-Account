@@ -24,10 +24,10 @@ public record LoginRequest (
 );
 
 public record ChangePasswordRequest(
-    string CurrentPassword
+    string CurrentPasscode
 );
 
 public record SetPasswordRequest(
-    string NewPassword,
-    string ConfirmPassword
+    string NewPasscode,
+    string ConfirmPasscode
 );

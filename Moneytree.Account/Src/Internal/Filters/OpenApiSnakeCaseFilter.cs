@@ -1,4 +1,4 @@
-namespace Moneytree.Accounts.Src.Internal.Filters;
+namespace Moneytree.Account.Src.Internal.Filters;
 
 
 using Microsoft.AspNetCore.OpenApi;
