@@ -9,11 +9,9 @@ using StackExchange.Redis;
 using System.Text.Json;
 using Moneytree.Account.Src.Utils;
 using Microsoft.AspNetCore.Authorization;
-using System.IdentityModel.Tokens.Jwt;
 using Moneytree.Account.Src.Internal.Schemas;
-using Microsoft.OpenApi.Extensions;
 using Moneytree.Account.Src.Modules;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+
 
 [ApiController]
 [Route("auth")]
@@ -29,12 +27,13 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
     {
         UserModel? user = await _DbContext.Users.FirstOrDefaultAsync(u => u.Email == payload.Email);
 
-        if (user != null) {
-            return BadRequest(new {message = "user already exist"});
+        if (user != null)
+        {
+            return BadRequest(new ServerResponse{ Message = "user already exist" });
         }
 
         var users_key = _Utils.GenerateKey("user", payload.Email);
-        String? signup_key = null; 
+        String? signup_key = null;
 
         String? otp = null;
         bool has_otp = false;
@@ -79,12 +78,13 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
             );
 
         }
-        if (_env.SERVICE_ENV != "production") Response.Headers.Append("get-otp", otp );
+        if (_env.SERVICE_ENV != "production") Response.Headers.Append("get-otp", otp);
         // TODO: send otp email via queue
 
         // splitting the signup key to get the reference token/ flow key
         string flow_key = signup_key.Split(":")[1];
-        return Ok(new { message = "success", data = new { flow_key } });
+        // return Ok(new { message = "success", data = new { flow_key } });
+        return Ok(new ServerResponse { Data = new { flow_key } });
     }
 
     [HttpPost("otp")]
@@ -95,14 +95,14 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
 
         if (signup_key == null)
         {
-            return BadRequest(new { message = "invalid otp" });
+            return BadRequest(new ServerResponse{ Message = "invalid otp" });
         }
 
         String? user_string = await _AppStore.StringGetAsync(signup_key);
 
         if (user_string == null)
         {
-            return BadRequest(new { message = "invalid otp" });
+            return BadRequest(new ServerResponse{ Message = "invalid otp" });
         }
 
         var data = JsonSerializer.Deserialize<Dictionary<string, string>>(user_string);
@@ -111,14 +111,14 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
 
         if (isInvalid)
         {
-            return BadRequest(new { message = "invalid otp" });
+            return BadRequest(new ServerResponse{ Message = "invalid otp" });
         }
 
         var user_id = data?["email"] ?? "";
 
         var token = _Utils.GenerateJwtToken(user_id, Internal.Schemas.JwtTokenEnum.SignupToken);
 
-        return Ok(new { message = "success", data = new { token } });
+        return Ok(new ServerResponse{ Data = new { token } });
     }
 
     [HttpPatch("signup")]
@@ -128,7 +128,7 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
         TokenInfo? claim = (TokenInfo?)HttpContext.Items["user"];
         if (claim?.TokenType != JwtTokenEnum.SignupToken.ToString() || claim?.UserId == null)
         {
-            return StatusCode(403, new { message = "Invalid token type" });
+            return StatusCode(403, new ServerResponse{ Message = "Invalid token type" });
         }
 
         var user = new UserModel
@@ -146,7 +146,7 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
         await _DbContext.Users.AddAsync(user);
         await _DbContext.SaveChangesAsync();
 
-        return Ok(new { message = "success" });
+        return Ok(new ServerResponse{ Message = "success" });
     }
 
     [HttpPost("login")]
@@ -155,12 +155,12 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
         UserModel? user = await _DbContext.Users.FirstOrDefaultAsync(u => u.Email == payload.Email);
 
         if (user == null) {
-            return BadRequest(new {message = "invalid email address/passcode"});
+            return BadRequest(new ServerResponse{Message = "invalid email address/passcode"});
         }
 
         if (user.Passcode == null)
         {
-            return BadRequest(new {message = "registration incomplete"});
+            return BadRequest(new ServerResponse{ Message = "registration incomplete"});
         }
 
         string login_key = _Utils.GenerateKey("login", user.Id.ToString());
@@ -172,7 +172,7 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
                 user.LastLogInAttempt = DateTime.Now;
                 user.FailedLoginAttempt += 1;
                 await _DbContext.SaveChangesAsync();
-                return BadRequest(new { message = "invalid email address/passcode" });
+                return BadRequest(new ServerResponse{ Message = "invalid email address/passcode" });
             }
 
             if (user.HasMFA)
@@ -190,7 +190,7 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
 
                 // TODO: send otp email via queue
 
-                return Ok(new { message = "success", data = new { login_type = "2FA" } });
+                return Ok(new ServerResponse{  Data = new { login_type = "2FA" } });
 
             }
 
@@ -207,7 +207,7 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
                 user.LastLogInAttempt = DateTime.Now;
                 user.FailedLoginAttempt += 1;
                 await _DbContext.SaveChangesAsync();
-                return BadRequest(new { message = "invalid mfa_token" });
+                return BadRequest(new ServerResponse{ Message = "invalid mfa_token" });
             } 
             
             user.LastLogInAttempt = DateTime.Now;
@@ -219,14 +219,14 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
             user.LastLogInAttempt = DateTime.Now;
             user.FailedLoginAttempt += 1;
             await _DbContext.SaveChangesAsync();
-            return BadRequest(new { message = "passcode/mfa_token not provided" });
+            return BadRequest(new ServerResponse{ Message = "passcode/mfa_token not provided" });
         }
 
         var user_id = user.Id.ToString();
 
         var token = _Utils.GenerateJwtToken(user_id, Internal.Schemas.JwtTokenEnum.LoginToken);
 
-        return Ok(new { message = "success", data = new { token } });
+        return Ok(new ServerResponse{ Data = new { token } });
     }
 
     [HttpPost("forgot")]
@@ -235,7 +235,7 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
         UserModel? user = await _DbContext.Users.FirstOrDefaultAsync(u => u.Email == payload.Email);
 
         if (user == null) {
-            return BadRequest(new {message = "invalid email address"});
+            return BadRequest(new ServerResponse{Message = "invalid email address"});
         }
 
         string forgot_passcode_key = _Utils.GenerateKey("forgot-passcode");
@@ -256,7 +256,7 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
 
         // TODO: send otp email via queue
 
-        return Ok(new {  message = "success" });
+        return Ok(new ServerResponse{});
     }
 
     [HttpPatch("forgot")]
@@ -266,14 +266,14 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
 
         if (forgot_passcode_key == null)
         {
-            return BadRequest(new { message = "invalid otp" });
+            return BadRequest(new ServerResponse{ Message = "invalid otp" });
         }
 
         String? cached_string = await _AppStore.StringGetAsync(forgot_passcode_key);
 
         if (cached_string == null)
         {
-            return BadRequest(new { message = "invalid otp" });
+            return BadRequest(new ServerResponse{ Message = "invalid otp" });
         }
 
         var data = JsonSerializer.Deserialize<Dictionary<string, string>>(cached_string);
@@ -282,14 +282,14 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
 
         if (isInvalid)
         {
-            return BadRequest(new { message = "invalid otp" });
+            return BadRequest(new ServerResponse{ Message = "invalid otp" });
         }
 
         var user_id = data?["email"] ?? "";
 
         var token = _Utils.GenerateJwtToken(user_id, Internal.Schemas.JwtTokenEnum.ForgotToken);
 
-        return Ok(new { message = "success", data = new { token } });
+        return Ok(new ServerResponse{ Data = new { token } });
     }
 
     [HttpPost("change-password")]
@@ -299,7 +299,7 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
         TokenInfo? claim = (TokenInfo?)HttpContext.Items["user"];
         if (claim?.UserId == null || claim?.TokenType != JwtTokenEnum.LoginToken.ToString())
         {
-            return StatusCode(403, new { message = "Invalid token type" });
+            return StatusCode(403, new ServerResponse { Message = "Invalid token type" });
         }
 
         UserModel user = await _DbContext.Users.FirstAsync(u => u.Id == Guid.Parse(claim.UserId));
@@ -307,7 +307,7 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
         // check failed login attempt is less than 3 in the last 30 minuites 
         if (user.FailedLoginAttempt >= 3 && (DateTime.Now - user.LastLogInAttempt).TotalMinutes < 30)
         {
-            return StatusCode(403, new { message = "Too many failed login attempts. Please wait 30 minutes before trying again." });
+            return StatusCode(403, new ServerResponse { Message = "Too many failed login attempts. Please wait 30 minutes before trying again." });
         }
 
         if (!PasswordHasher.VerifyPassword(payload.CurrentPasscode, user.Passcode ?? ""))
@@ -315,7 +315,7 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
             user.LastLogInAttempt = DateTime.Now;
             user.FailedLoginAttempt += 1;
             await _DbContext.SaveChangesAsync();
-            return BadRequest(new { message = "Invalid token type" });
+            return BadRequest(new ServerResponse { Message = "Invalid token type" });
         }
 
 
@@ -331,7 +331,7 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
             TimeSpan.FromMinutes(5)
         );
 
-        return Ok(payload);
+        return Ok(new ServerResponse{});
     }
 
     [HttpPatch("set-password")]
@@ -345,7 +345,7 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
 
         if (payload.NewPasscode != payload.ConfirmPasscode)
         {
-            return BadRequest(new { message = "new passcode doesnt match" });
+            return BadRequest(new ServerResponse{ Message = "new passcode doesnt match" });
         }
 
         TokenInfo? claim = (TokenInfo?)HttpContext.Items["user"];
@@ -359,12 +359,12 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
 
             if (user == null)
             {
-                return BadRequest(new { message = "complete user signup proccess before including password" });
+                return BadRequest(new ServerResponse{ Message = "complete user signup proccess before including password" });
             }
 
             if (user.Passcode != null && claim?.TokenType == JwtTokenEnum.SignupToken.ToString())
             {
-                return BadRequest(new { message = "user signup completed!, please login to change password" });
+                return BadRequest(new ServerResponse{ Message = "user signup completed!, please login to change password" });
             }
             else if (claim?.TokenType == JwtTokenEnum.SignupToken.ToString())
             {
@@ -380,23 +380,23 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
 
             if (user == null)
             {
-                return BadRequest(new { message = "invalid user" });
+                return BadRequest(new ServerResponse{ Message = "invalid user" });
             }
             String change_password_key = _Utils.GenerateKey("create_user", claim.UserId);
             String? cached_data = await _AppStore.StringGetAsync(change_password_key);
 
             if (cached_data == null)
             {
-                return BadRequest(new { message = "Password change request required." }); 
+                return BadRequest(new ServerResponse{ Message = "Password change request required." }); 
             }
             user.Passcode = PasswordHasher.HashPassword(payload.NewPasscode);
             await _DbContext.SaveChangesAsync();
         }
         else
         {
-            return StatusCode(403, new { message = "Invalid token type" });
+            return StatusCode(403, new ServerResponse{ Message = "Invalid token type" });
         }
-        return Ok(new { message = "success", data = "successful, please log in to continue." });
+        return Ok(new ServerResponse{ Data = "successful, please log in to continue." });
     }
 
 }
