@@ -21,6 +21,8 @@ public class UserModel
     public DateTime LastLogInAttempt { get; set; } = DateTime.UtcNow;
 
     public int FailedLoginAttempt { get; set; } = 0;
+    
+    public string? ProfileImage { get; set; } 
 }
 
 

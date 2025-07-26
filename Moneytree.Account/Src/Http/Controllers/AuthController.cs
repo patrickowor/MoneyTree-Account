@@ -79,7 +79,7 @@ public class AuthController(Db dbContext, AppStore store, Helpers utils, EnvSche
 
         }
         if (_env.SERVICE_ENV != "production") Response.Headers.Append("get-otp", otp);
-        // TODO: send otp email via queue
+        // TODO : send otp email via queue
 
         // splitting the signup key to get the reference token/ flow key
         string flow_key = signup_key.Split(":")[1];

@@ -8,6 +8,11 @@ using System.Security.Claims;
 using System.Text;
 using Moneytree.Account.Src.Internal.Schemas;
 
+using System;
+using System.Collections.Generic;
+using System.Dynamic;
+using System.Reflection;
+
 public class Helpers(EnvSchema _env)
 {
     private EnvSchema env = _env;
@@ -74,6 +79,18 @@ public class Helpers(EnvSchema _env)
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    
+
+    public ExpandoObject OmitFields(object source, params string[] fieldsToOmit)
+    {
+        IDictionary<string, object?> expando = new ExpandoObject();
+        foreach (PropertyInfo prop in source.GetType().GetProperties())
+        {
+            if (!fieldsToOmit.Contains(prop.Name))
+            {
+                expando[prop.Name] = prop.GetValue(source);
+            }
+        }
+        return (ExpandoObject)expando;
+    }
 
 };
